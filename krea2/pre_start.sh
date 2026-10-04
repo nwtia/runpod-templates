@@ -12,9 +12,8 @@ if [[ ! -f /workspace/.nwtia-krea2-ready ]]; then
   if /opt/nwtia/install.sh 2>&1 | tee /workspace/logs/nwtia-install.log; then
     touch /workspace/.nwtia-krea2-ready
   else
-    echo "NWTIA setup incomplete. Add CIVITAI_TOKEN and restart the Pod. See /workspace/logs/nwtia-install.log" >&2
+    echo "NWTIA setup incomplete. Restart the Pod or inspect /workspace/logs/nwtia-install.log" >&2
   fi
 fi
 
 /start_comfyui.sh ${EXTRA_ARGS:-}
-

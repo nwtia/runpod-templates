@@ -589,14 +589,14 @@
         "previewExposures": []
       },
       "widgets_values": [
-        "intorealismKrea2_v40.safetensors",
+        "Krea2IntoRealismV1-Int8.safetensors",
         "qwen3vl_4b_fp8_scaled.safetensors",
         "wan_2.1_vae.safetensors",
         1024,
         1536
       ],
       "widgets_values_named": {
-        "unet_name": "intorealismKrea2_v40.safetensors",
+        "unet_name": "Krea2IntoRealismV1-Int8.safetensors",
         "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
         "vae_name": "wan_2.1_vae.safetensors",
         "width": 1024,

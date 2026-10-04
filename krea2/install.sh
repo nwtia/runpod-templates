@@ -17,7 +17,7 @@ if [[ -z "$PYTHON_BIN" ]]; then
 fi
 
 download() {
-  local url="$1" dest="$2" sha="$3" auth="${4:-}"
+  local url="$1" dest="$2" sha="$3"
   mkdir -p "$(dirname "$dest")"
   if [[ -f "$dest" ]] && echo "$sha  $dest" | sha256sum -c - >/dev/null 2>&1; then
     echo "OK: $(basename "$dest")"
@@ -25,10 +25,6 @@ download() {
   fi
   echo "Download: $(basename "$dest")"
   local args=(-fL --retry 8 --retry-all-errors --connect-timeout 20 -C - -o "$dest.part")
-  if [[ "$auth" == "civitai" ]]; then
-    : "${CIVITAI_TOKEN:?CIVITAI_TOKEN doit etre defini pour le checkpoint IntoRealism Krea2 v4 FP8}"
-    args+=(-H "Authorization: Bearer $CIVITAI_TOKEN")
-  fi
   curl "${args[@]}" "$url"
   echo "$sha  $dest.part" | sha256sum -c -
   mv "$dest.part" "$dest"
@@ -73,12 +69,10 @@ download \
   "$COMFY_ROOT/models/loras/nicegirls_krea2.safetensors" \
   "25847a032823dbd634e5b9f79866319b174557bce753367e4a08fddfea7eb57b"
 
-# This authenticated checkpoint is downloaded last so every public dependency
-# is already cached if the user's CivitAI token is missing or expired.
 download \
-  "https://civitai.com/api/download/models/3271538?fileId=3214808" \
-  "$COMFY_ROOT/models/diffusion_models/intorealismKrea2_v40.safetensors" \
-  "fa11722b30016a8e51a7b601ecf7ecf4326a91ad79cb1a29bb5d2769f8e3fe16" civitai
+  "https://huggingface.co/enzinoai/IntoRealism-Krea-2/resolve/main/Krea2IntoRealismV1-Int8.safetensors" \
+  "$COMFY_ROOT/models/diffusion_models/Krea2IntoRealismV1-Int8.safetensors" \
+  "8b0a8dea2a7aeb62ddb195d430e86d77d3631f5a5cc68f765d4b3a945fdef4a5"
 
 install_node "https://github.com/rgthree/rgthree-comfy.git" "rgthree-comfy"
 install_node "https://github.com/yolain/ComfyUI-Easy-Use.git" "comfyui-easy-use"
