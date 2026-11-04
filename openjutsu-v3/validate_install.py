@@ -11,6 +11,8 @@ import urllib.error
 code = Path(os.environ['OPENJUTSU_CODE_ROOT'])
 with tempfile.TemporaryDirectory(prefix='nwtia-openjutsu-check-') as temporary:
     target = Path(temporary)
+    for name in ('user', 'temp', 'output', 'input'):
+        (target / name).mkdir()
     with (target / 'comfy.log').open('w+') as log:
         process = subprocess.Popen([str(code / 'venv/bin/python'), str(code / 'ComfyUI/main.py'),
             '--cpu', '--listen', '127.0.0.1', '--port', '18190', '--disable-auto-launch',
