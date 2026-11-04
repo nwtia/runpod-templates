@@ -13,9 +13,14 @@ with tempfile.TemporaryDirectory(prefix='nwtia-openjutsu-check-') as temporary:
     target = Path(temporary)
     for name in ('user', 'temp', 'output', 'input'):
         (target / name).mkdir()
+    # Register the same extra model folder as the runtime before V3 schemas load.
+    (target / 'models/clip_projections').mkdir(parents=True)
+    config = target / 'models.yaml'
+    config.write_text('nwtia:\n  base_path: ' + str(target / 'models') + '\n  clip_projections: clip_projections\n')
     with (target / 'comfy.log').open('w+') as log:
         process = subprocess.Popen([str(code / 'venv/bin/python'), str(code / 'ComfyUI/main.py'),
             '--cpu', '--listen', '127.0.0.1', '--port', '18190', '--disable-auto-launch',
+            '--extra-model-paths-config', str(config),
             '--user-directory', str(target / 'user'), '--temp-directory', str(target / 'temp'),
             '--output-directory', str(target / 'output'), '--input-directory', str(target / 'input')],
             cwd=code / 'ComfyUI', stdout=log, stderr=subprocess.STDOUT)
