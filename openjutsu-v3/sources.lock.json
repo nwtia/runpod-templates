@@ -1,0 +1,92 @@
+[
+  {
+    "name": "OpenJutsu",
+    "path": "app",
+    "url": "https://github.com/D3voz/openjutsu.git",
+    "commit": "7fe118bb5a61fcfac0148e1bfea3dd29884dbf26"
+  },
+  {
+    "name": "ComfyUI",
+    "path": "ComfyUI",
+    "url": "https://github.com/Comfy-Org/ComfyUI.git",
+    "commit": "ab08f7b2caa6d4007ecde3762116c6193613f43b"
+  },
+  {
+    "name": "ComfyUI-ClipProj",
+    "path": "ComfyUI/custom_nodes/ComfyUI-ClipProj",
+    "url": "https://github.com/nicolab28/ComfyUI-ClipProj.git",
+    "commit": "c01ba8fb8f41b4f2094dbd0b185cdc238fb6134c"
+  },
+  {
+    "name": "ComfyUI-Fantastic-MiniMaxH3-PromptBuilder",
+    "path": "ComfyUI/custom_nodes/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder",
+    "url": "https://github.com/Adudeguyman/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder.git",
+    "commit": "22e719fe89336c628383363182a4da3cb58d4f9b"
+  },
+  {
+    "name": "ComfyUI-H3-FaceRefine",
+    "path": "ComfyUI/custom_nodes/ComfyUI-H3-FaceRefine",
+    "url": "https://github.com/Carasibana/ComfyUI-H3-FaceRefine.git",
+    "commit": "d8521d14fe0d721d80cd9417fff5a559cbc21aba"
+  },
+  {
+    "name": "comfyui-h3-oneclick-swap",
+    "path": "ComfyUI/custom_nodes/comfyui-h3-oneclick-swap",
+    "url": "https://github.com/D3voz/comfyui-h3-oneclick-swap.git",
+    "commit": "e44a56e92920000e675d14be484aea0d7498d63e"
+  },
+  {
+    "name": "comfyui-image-detail-contrast",
+    "path": "ComfyUI/custom_nodes/comfyui-image-detail-contrast",
+    "url": "https://github.com/D3voz/comfyui-image-detail-contrast.git",
+    "commit": "485a5e246424ce012b998862b45f06d21e8d63b2"
+  },
+  {
+    "name": "ComfyUI-Impact-Pack",
+    "path": "ComfyUI/custom_nodes/ComfyUI-Impact-Pack",
+    "url": "https://github.com/ltdrdata/ComfyUI-Impact-Pack.git",
+    "commit": "56a34b9c439470d07440f9104204a084e5fdb38c"
+  },
+  {
+    "name": "ComfyUI-KJNodes",
+    "path": "ComfyUI/custom_nodes/ComfyUI-KJNodes",
+    "url": "https://github.com/kijai/ComfyUI-KJNodes.git",
+    "commit": "ab72eda7ffad6280422d71ab7d54d3fb87c0ba18"
+  },
+  {
+    "name": "ComfyUI-MiniMaxH3-Context-Loop",
+    "path": "ComfyUI/custom_nodes/ComfyUI-MiniMaxH3-Context-Loop",
+    "url": "https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop.git",
+    "commit": "43afeffcc570beb5f7382593e79e4b211c7e02f6"
+  },
+  {
+    "name": "ComfyUI-VideoHelperSuite",
+    "path": "ComfyUI/custom_nodes/ComfyUI-VideoHelperSuite",
+    "url": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
+    "commit": "4d907bee61e92c2e65af3bd6383a4e4d356126d1"
+  },
+  {
+    "name": "comfyui-websocket-reconnect-fix",
+    "path": "ComfyUI/custom_nodes/comfyui-websocket-reconnect-fix",
+    "url": "https://github.com/D3voz/comfyui-websocket-reconnect-fix.git",
+    "commit": "12b5fdf38e8bdbf8a560b9196561244bf65621f4"
+  },
+  {
+    "name": "comfyui_controlnet_aux",
+    "path": "ComfyUI/custom_nodes/comfyui_controlnet_aux",
+    "url": "https://github.com/Fannovel16/comfyui_controlnet_aux.git",
+    "commit": "a587a4c1594524c1d2de5cd1a86cd868ff448e1c"
+  },
+  {
+    "name": "Orion4D_FXMax",
+    "path": "ComfyUI/custom_nodes/Orion4D_FXMax",
+    "url": "https://github.com/orion4d/Orion4D_FXMax.git",
+    "commit": "7048e8423ad7d1a6a52119d0d4870c2b7fc2885f"
+  },
+  {
+    "name": "SolarRenderer",
+    "path": "ComfyUI/custom_nodes/SolarRenderer",
+    "url": "https://github.com/Enderfga/SolarRenderer.git",
+    "commit": "0ca4f5e45b062cc9e9aee506de46aabdc22e4c3d"
+  }
+]
