@@ -2,8 +2,11 @@
 from pathlib import Path
 import fcntl
 import hashlib
+import hmac
 import json
 import os
+import re
+import secrets
 import shutil
 import signal
 import subprocess
@@ -24,6 +27,165 @@ PROXY = CODE / 'proxy-venv/bin/python'
 NODE_ROOT = CODE / 'node-v24.11.1-linux-x64'
 NODE = NODE_ROOT / 'bin/node'
 CHILDREN = []
+
+
+def web_access_token(root=ROOT):
+    """One private opening link per persistent workspace; never baked into the image."""
+    path = Path(root) / '.web-access-token'
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        token = path.read_text().strip()
+    else:
+        token = secrets.token_hex(32)
+        with os.fdopen(descriptor, 'w') as stream:
+            stream.write(token + '\n')
+    if not re.fullmatch(r'[a-f0-9]{64}', token):
+        raise RuntimeError('Invalid private web access file; refusing to expose OpenJutsu.')
+    path.chmod(0o600)
+    return token
+
+
+def web_access_origin():
+    pod = os.environ.get('RUNPOD_POD_ID', '')
+    if not re.fullmatch(r'[a-zA-Z0-9]{5,64}', pod):
+        raise RuntimeError('RUNPOD_POD_ID is required for the private browser link.')
+    return 'https://' + pod + '-8080.proxy.runpod.net'
+
+
+def web_access_app(token, origin, upstream='http://127.0.0.1:3000'):
+    """Authenticated streaming gateway. The application and Comfy services stay on loopback."""
+    from aiohttp import web, ClientSession, ClientTimeout, ClientError
+    from multidict import CIMultiDict
+    from urllib.parse import urlsplit
+
+    public = urlsplit(origin)
+    internal = urlsplit(upstream)
+    if public.scheme != 'https' and public.hostname not in {'127.0.0.1', 'localhost'}:
+        raise ValueError('Public browser access requires HTTPS')
+    if internal.hostname not in {'127.0.0.1', 'localhost'} or internal.scheme != 'http':
+        raise ValueError('The web upstream must be a local HTTP application')
+    cookie_name = '__Host-openjutsu-session' if public.scheme == 'https' else 'openjutsu-local-test'
+    session_key = hmac.new(token.encode(), b'openjutsu-browser-session-v1', hashlib.sha256).hexdigest()
+    limit = 512 * 1024**2
+    session = None
+    hop = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+           'te', 'trailer', 'transfer-encoding', 'upgrade', 'proxy-connection'}
+
+    def secure_headers():
+        return {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
+                'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY'}
+
+    def page(message, status=200, login=False):
+        nonce = secrets.token_urlsafe(18)
+        script = '''
+const secret=new URLSearchParams(location.hash.slice(1)).get('access');
+if(secret){history.replaceState(null,'',location.pathname);fetch('/__openjutsu/login',{
+method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access:secret})
+}).then(r=>{if(!r.ok)throw Error();location.replace('/')}).catch(()=>{
+document.getElementById('message').textContent='Ce lien ne fonctionne pas. Ouvre le lien affiché dans les logs de ton pod RunPod.'})}
+''' if login else "setTimeout(()=>location.reload(),5000)"
+        body = ('<!doctype html><html lang="fr"><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                '<title>OpenJutsu</title><style>body{font:18px system-ui;max-width:650px;'
+                'margin:15vh auto;padding:24px;background:#111318;color:#eceff5}'
+                'h1{font-size:32px}p{line-height:1.6}</style><h1>OpenJutsu</h1>'
+                '<p id="message">' + message + '</p><script nonce="' + nonce + '">' + script + '</script></html>')
+        headers = secure_headers()
+        headers['Content-Security-Policy'] = ("default-src 'none'; script-src 'nonce-" + nonce +
+            "'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+        return web.Response(text=body, content_type='text/html', status=status, headers=headers)
+
+    async def lifecycle(app):
+        nonlocal session
+        session = ClientSession(timeout=ClientTimeout(total=None, sock_connect=10, sock_read=None),
+                                auto_decompress=False, trust_env=False)
+        yield
+        await session.close()
+
+    async def handle(request):
+        if request.path == '/__openjutsu/health' and request.method == 'GET':
+            return web.json_response({'gateway': 'ready'}, headers=secure_headers())
+        if request.host.lower() != public.netloc.lower():
+            return web.json_response({'error': 'Unknown address'}, status=421, headers=secure_headers())
+        supplied_origin = request.headers.get('Origin')
+        if supplied_origin is not None and supplied_origin != origin:
+            return web.json_response({'error': 'Cross-origin request refused'}, status=403, headers=secure_headers())
+        if request.path == '/__openjutsu/login':
+            if request.method != 'POST' or supplied_origin != origin:
+                return web.json_response({'error': 'Open the private browser link'}, status=403, headers=secure_headers())
+            raw = bytearray()
+            async for chunk in request.content.iter_chunked(1024):
+                raw.extend(chunk)
+                if len(raw) > 1024:
+                    return web.json_response({'error': 'Invalid opening link'}, status=413, headers=secure_headers())
+            try:
+                supplied = json.loads(raw).get('access', '') if len(raw) <= 1024 else ''
+            except (ValueError, AttributeError):
+                supplied = ''
+            if not isinstance(supplied, str) or not re.fullmatch(r'[a-f0-9]{64}', supplied) or not hmac.compare_digest(supplied, token):
+                return web.json_response({'error': 'Invalid opening link'}, status=401, headers=secure_headers())
+            response = web.json_response({'ok': True}, headers=secure_headers())
+            response.set_cookie(cookie_name, session_key, secure=public.scheme == 'https',
+                                httponly=True, samesite='Strict', max_age=30 * 24 * 3600, path='/')
+            return response
+        cookie = request.cookies.get(cookie_name, '')
+        if not re.fullmatch(r'[a-f0-9]{64}', cookie) or not hmac.compare_digest(cookie, session_key):
+            if request.path == '/' and request.method == 'GET':
+                return page('Ouvre le lien privé affiché dans les logs de ton pod RunPod. '
+                            'Ensuite, garde cette page en favori.', login=True)
+            return web.json_response({'error': 'Open the private browser link'}, status=401, headers=secure_headers())
+        # Other customers' proxy.runpod.net hosts may be same-site, but are never same-origin.
+        if request.path != '/' and request.headers.get('Sec-Fetch-Site') not in {None, 'same-origin', 'none'}:
+            return web.json_response({'error': 'Cross-origin request refused'}, status=403, headers=secure_headers())
+        if request.content_length is not None and request.content_length > limit:
+            return web.json_response({'error': 'Upload too large'}, status=413, headers=secure_headers())
+        if request.headers.get('Upgrade', '').lower() == 'websocket':
+            return web.json_response({'error': 'WebSocket upgrades are not exposed'}, status=426, headers=secure_headers())
+        excluded = hop | {part.strip().lower() for part in request.headers.get('Connection', '').split(',')}
+        headers = CIMultiDict((key, value) for key, value in request.headers.items()
+            if key.lower() not in excluded | {'host', 'cookie', 'origin', 'forwarded', 'x-real-ip'}
+            and not key.lower().startswith('x-forwarded-'))
+        headers['Host'] = internal.netloc
+        headers['X-Forwarded-Proto'] = 'http'
+        if supplied_origin is not None:
+            headers['Origin'] = upstream
+        response = None
+        try:
+            async with session.request(request.method, upstream + request.raw_path,
+                    headers=headers, data=request.content.iter_chunked(128 * 1024) if request.can_read_body else None,
+                    allow_redirects=False) as remote:
+                response_headers = CIMultiDict((key, value) for key, value in remote.headers.items()
+                    if key.lower() not in hop | {'x-frame-options', 'referrer-policy'})
+                response_headers['Referrer-Policy'] = 'no-referrer'
+                response_headers['X-Frame-Options'] = 'DENY'
+                response_headers.add('Content-Security-Policy', "frame-ancestors 'none'")
+                if response_headers.get('Location', '').startswith(upstream + '/'):
+                    response_headers['Location'] = origin + response_headers['Location'][len(upstream):]
+                response = web.StreamResponse(status=remote.status, headers=response_headers)
+                await response.prepare(request)
+                async for chunk in remote.content.iter_any():
+                    await response.write(chunk)
+                await response.write_eof()
+                return response
+        except ClientError:
+            if response is not None and response.prepared:
+                response.force_close()
+                return response
+            if request.path == '/' and request.method == 'GET':
+                return page('OpenJutsu démarre et prépare les modèles. Cette page se met à jour automatiquement.')
+            return web.json_response({'error': 'OpenJutsu est en cours de demarrage.'}, status=503, headers=secure_headers())
+
+    app = web.Application(client_max_size=limit)
+    app.cleanup_ctx.append(lifecycle)
+    app.router.add_route('*', '/{tail:.*}', handle)
+    return app
+
+
+def serve_web_access():
+    from aiohttp import web
+    web.run_app(web_access_app(web_access_token(), web_access_origin()),
+                host='0.0.0.0', port=8080, access_log=None, print=None)
 
 
 def run(args, cwd=None, env=None):
@@ -177,7 +339,8 @@ def ssh():
             keys.write_text(existing.rstrip() + '\n' + public_key + '\n')
         keys.chmod(0o600)
     if not keys.exists() or not keys.read_text().strip():
-        raise RuntimeError('Add an SSH public key to your RunPod account before deploying this SSH-only template.')
+        print('[NWTIA] SSH optionnel non active. Utiliser le lien web OpenJutsu.', flush=True)
+        return
     run(['ssh-keygen', '-A'])
     Path('/run/sshd').mkdir(exist_ok=True)
     start('ssh', ['/usr/sbin/sshd', '-D', '-e', '-o', 'PasswordAuthentication=no', '-o', 'PermitRootLogin=prohibit-password'])
@@ -209,6 +372,11 @@ def main():
     install()
     os.environ['PATH'] = str(NODE_ROOT / 'bin') + ':' + os.environ['PATH']
     ssh()
+    token = web_access_token()
+    opening_link = web_access_origin() + '/#access=' + token
+    gateway = start('web', [PYTHON, '-u', BUNDLE / 'bootstrap.py', '--web-access'])
+    wait_http('http://127.0.0.1:8080/__openjutsu/health', gateway, seconds=30)
+    print('[NWTIA] OUVRIR OPENJUTSU : ' + opening_link, flush=True)
     download_models()
     config = ROOT / 'models.yaml'
     config.write_text('nwtia:\n  base_path: /workspace/openjutsu/models\n  is_default: true\n' + ''.join(
@@ -231,7 +399,7 @@ def main():
     wait_http('http://127.0.0.1:8189/api/v2/health', proxy, seconds=30)
     app = start('app', [NODE, APP / 'node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', '3000'], cwd=APP)
     wait_http('http://127.0.0.1:3000/api/models', app)
-    print('[NWTIA] OpenJutsu ready. Use an SSH tunnel to localhost:3000. No generation has been submitted.', flush=True)
+    print('[NWTIA] OpenJutsu est pret. OUVRIR OPENJUTSU : ' + opening_link, flush=True)
     while True:
         for process in CHILDREN:
             if process.poll() is not None:
@@ -244,6 +412,9 @@ def stop(*_):
 
 
 if __name__ == '__main__':
+    if sys.argv[1:] == ['--web-access']:
+        serve_web_access()
+        raise SystemExit(0)
     if sys.argv[1:] == ['--install-only']:
         install()
         raise SystemExit(0)

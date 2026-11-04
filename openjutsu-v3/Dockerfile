@@ -1,27 +1,13 @@
-FROM nvidia/cuda:13.0.2-runtime-ubuntu24.04
-
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-venv ca-certificates
-
-ENV OPENJUTSU_CODE_ROOT=/opt/nwtia/openjutsu-runtime \
-    NEXT_TELEMETRY_DISABLED=1 \
-    HF_HUB_DISABLE_TELEMETRY=1 \
-    HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    SAM2_BUILD_CUDA=0
-
-COPY bootstrap.py overlay.zip sources.lock.json models.lock.json /opt/nwtia/openjutsu/
-COPY validate_install.py /opt/nwtia/openjutsu/validate_install.py
-RUN python3 -u /opt/nwtia/openjutsu/bootstrap.py --install-only \
-    && python3 -u /opt/nwtia/openjutsu/validate_install.py \
-    && rm -f /etc/ssh/ssh_host_* \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-LABEL org.opencontainers.image.title="NWTIA OpenJutsu V3" \
-      org.opencontainers.image.source="https://github.com/nwtia/runpod-templates" \
-      org.opencontainers.image.description="Pinned OpenJutsu V3, Qwen 4B + ClipProj, LoRA and tracked foreground preservation"
-
-EXPOSE 22
+# Reuse the GPU-tested runtime without reinstalling or changing the model stack.
+FROM ghcr.io/nwtia/nwtia-runpod-openjutsu-v3@sha256:9f99f359d54ce900eb95af3dcb74818d5c4dfbd7ef3c3922c37d1062a313e230
+RUN cp /opt/nwtia/openjutsu/bootstrap.py /opt/nwtia/openjutsu/bootstrap.base.py
+COPY bootstrap.py /opt/nwtia/openjutsu/bootstrap.py
+COPY test_web_access.py /opt/nwtia/openjutsu/test_web_access.py
+COPY validate_web_runtime.py /opt/nwtia/openjutsu/validate_web_runtime.py
+RUN python3 /opt/nwtia/openjutsu/validate_web_runtime.py \
+    && NWTIA_BOOTSTRAP=/opt/nwtia/openjutsu/bootstrap.py /opt/nwtia/openjutsu-runtime/venv/bin/python /opt/nwtia/openjutsu/test_web_access.py \
+    && python3 /opt/nwtia/openjutsu/validate_install.py
+LABEL org.opencontainers.image.title="NWTIA OpenJutsu V3 - browser access" \
+      org.opencontainers.image.description="Private opening link; no SSH setup, streaming uploads and progress"
+EXPOSE 8080
 ENTRYPOINT ["python3", "-u", "/opt/nwtia/openjutsu/bootstrap.py"]
