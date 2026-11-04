@@ -18,6 +18,14 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Free space on the ephemeral build runner
+        run: |
+          for directory in /usr/local/lib/android /opt/ghc /usr/share/dotnet; do
+            if [ -d "$directory" ] && [ ! -L "$directory" ]; then
+              sudo rm -rf -- "$directory"
+            fi
+          done
+          df -h /
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
