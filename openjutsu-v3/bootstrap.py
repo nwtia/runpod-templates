@@ -3,6 +3,7 @@ from pathlib import Path
 import fcntl
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -106,7 +107,17 @@ document.getElementById('message').textContent='Ce lien ne fonctionne pas. Ouvre
     async def handle(request):
         if request.path == '/__openjutsu/health' and request.method == 'GET':
             return web.json_response({'gateway': 'ready'}, headers=secure_headers())
-        if request.host.lower() != public.netloc.lower():
+        # RunPod rewrites Host to its private relay and preserves the public
+        # address in X-Forwarded-Host. These headers never authenticate a session.
+        try:
+            relay = ipaddress.ip_address(urlsplit('http://' + request.host).hostname)
+            local_relay = relay.is_private or relay in ipaddress.ip_network('100.64.0.0/10')
+        except ValueError:
+            local_relay = False
+        forwarded_public = (local_relay
+            and request.headers.get('X-Forwarded-Host', '').lower() == public.netloc.lower()
+            and request.headers.get('X-Forwarded-Proto') == 'https')
+        if request.host.lower() != public.netloc.lower() and not forwarded_public:
             return web.json_response({'error': 'Unknown address'}, status=421, headers=secure_headers())
         supplied_origin = request.headers.get('Origin')
         if supplied_origin is not None and supplied_origin != origin:

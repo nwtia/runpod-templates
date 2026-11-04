@@ -125,6 +125,38 @@ class BrowserGateway(unittest.IsolatedAsyncioTestCase):
         async with await self.call('/__openjutsu/login', method='POST', headers={'Host': HOST, 'Origin': ORIGIN}, data=b'x' * 1025) as response:
             self.assertEqual(response.status, 413)
 
+    async def test_real_runpod_relay_can_open_login_and_forward_authenticated_requests(self):
+        relay = {'Host': '100.65.32.116:60112', 'X-Forwarded-Host': HOST,
+                 'X-Forwarded-Proto': 'https'}
+        async with await self.call('/', headers=relay) as response:
+            self.assertEqual(response.status, 200)
+        async with await self.call('/api/models', headers=relay) as response:
+            self.assertEqual(response.status, 401)
+        async with await self.call('/__openjutsu/login', method='POST',
+                headers={**relay, 'Origin': ORIGIN}, json={'access': TOKEN}) as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn('Secure', response.headers['Set-Cookie'])
+        async with await self.call('/api/probe', method='POST', data=b'probe',
+                headers={**relay, 'Origin': ORIGIN, 'Cookie': COOKIE}) as response:
+            self.assertEqual(response.status, 200)
+            result = await response.json()
+            self.assertIsNone(result['cookie'])
+            self.assertIsNone(result['forwarded_host'])
+            self.assertEqual(result['origin'], str(self.backend.make_url('')).rstrip('/'))
+        async with await self.call('/api/probe', method='POST',
+                headers={**relay, 'Origin': 'https://otherpod-8080.proxy.runpod.net', 'Cookie': COOKIE}) as response:
+            self.assertEqual(response.status, 403)
+
+    async def test_forwarded_host_cannot_replace_authentication_or_accept_foreign_relays(self):
+        relay = {'Host': '100.65.32.116:60112', 'X-Forwarded-Host': HOST,
+                 'X-Forwarded-Proto': 'https', 'Cookie': COOKIE}
+        for invalid in [{'Host': 'evil.invalid'}, {'Host': '8.8.8.8:8080'},
+                        {'X-Forwarded-Host': 'otherpod-8080.proxy.runpod.net'},
+                        {'X-Forwarded-Proto': 'http'}, {'X-Forwarded-Host': HOST + ', evil.invalid'}]:
+            async with await self.call('/api/models', headers={**relay, **invalid}) as response:
+                self.assertEqual(response.status, 421)
+        self.assertEqual(self.calls, [])
+
     async def test_uploads_stream_and_private_proxy_headers_are_rewritten(self):
         block = b'public test upload' * 4096
         async def body():
