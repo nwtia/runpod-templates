@@ -15,6 +15,7 @@ COPY bootstrap.py overlay.zip sources.lock.json models.lock.json /opt/nwtia/open
 COPY validate_install.py /opt/nwtia/openjutsu/validate_install.py
 RUN python3 -u /opt/nwtia/openjutsu/bootstrap.py --install-only \
     && python3 -u /opt/nwtia/openjutsu/validate_install.py \
+    && rm -f /etc/ssh/ssh_host_* \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
