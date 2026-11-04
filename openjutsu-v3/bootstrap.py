@@ -94,7 +94,7 @@ def install():
     run([PYTHON, '-m', 'pip', 'install', 'torch==2.13.0', 'torchvision==0.28.0',
          '--index-url', 'https://download.pytorch.org/whl/cu130'])
     constraints = CODE / 'constraints.txt'
-    constraints.write_text('torch==2.13.0+cu130\ntorchvision==0.28.0+cu130\nnumpy==2.3.2\ntransformers==5.15.0\ninsightface==1.0.1\nonnxruntime-gpu==1.24.2\n')
+    constraints.write_text('torch==2.13.0+cu130\ntorchvision==0.28.0+cu130\nnumpy==2.3.2\ntransformers==5.15.0\ninsightface==1.0.1\nonnxruntime-gpu==1.24.4\n')
     run([PYTHON, '-m', 'pip', 'install', '-c', constraints, '-r', COMFY / 'requirements.txt'])
     for repo in repos:
         requirements = CODE / repo['path'] / 'requirements.txt'
