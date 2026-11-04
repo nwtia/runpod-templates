@@ -169,7 +169,8 @@ def ssh():
     directory = Path('/root/.ssh')
     directory.mkdir(mode=0o700, exist_ok=True)
     keys = directory / 'authorized_keys'
-    public_key = os.environ.get('PUBLIC_KEY', '').strip()
+    public_key = (os.environ.get('PUBLIC_KEY', '').strip()
+                  or os.environ.get('SSH_PUBLIC_KEY', '').strip())
     if public_key:
         existing = keys.read_text() if keys.exists() else ''
         if public_key not in existing:
