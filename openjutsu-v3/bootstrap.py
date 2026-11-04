@@ -99,7 +99,9 @@ def install():
     for repo in repos:
         requirements = CODE / repo['path'] / 'requirements.txt'
         if repo['path'].startswith('ComfyUI/custom_nodes/') and requirements.is_file():
-            run([PYTHON, '-m', 'pip', 'install', '-c', constraints, '-r', requirements])
+            # SAM2's isolated build would download another, unpinned Torch + CUDA stack.
+            build_flags = ['--no-build-isolation'] if 'github.com/facebookresearch/sam2' in requirements.read_text() else []
+            run([PYTHON, '-m', 'pip', 'install', *build_flags, '-c', constraints, '-r', requirements])
     run([PYTHON, '-m', 'pip', 'install', '-c', constraints, 'imageio-ffmpeg', 'onnxruntime-gpu', 'huggingface_hub', 'scenedetect>=0.7'])
     run(['/usr/bin/python3', '-m', 'venv', CODE / 'proxy-venv'])
     run([PROXY, '-m', 'pip', 'install', 'comfy-api-proxy==0.1.6'])
