@@ -54,11 +54,12 @@ def web_access_origin():
     return 'https://' + pod + '-8080.proxy.runpod.net'
 
 
-def web_access_app(token, origin, upstream='http://127.0.0.1:3000'):
+def web_access_app(token, origin, upstream='http://127.0.0.1:3000', upload_root=None):
     """Authenticated streaming gateway. The application and Comfy services stay on loopback."""
     from aiohttp import web, ClientSession, ClientTimeout, ClientError
     from multidict import CIMultiDict
     from urllib.parse import urlsplit
+    from gateway_upload import ChunkUploads, PREFIX
 
     public = urlsplit(origin)
     internal = urlsplit(upstream)
@@ -68,7 +69,8 @@ def web_access_app(token, origin, upstream='http://127.0.0.1:3000'):
         raise ValueError('The web upstream must be a local HTTP application')
     cookie_name = '__Host-openjutsu-session' if public.scheme == 'https' else 'openjutsu-local-test'
     session_key = hmac.new(token.encode(), b'openjutsu-browser-session-v1', hashlib.sha256).hexdigest()
-    limit = 512 * 1024**2
+    limit = 2 * 1024**3
+    uploads = ChunkUploads(upload_root or ROOT / 'cache' / 'uploads')
     session = None
     hop = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
            'te', 'trailer', 'transfer-encoding', 'upgrade', 'proxy-connection'}
@@ -102,6 +104,7 @@ document.getElementById('message').textContent='Ce lien ne fonctionne pas. Ouvre
         session = ClientSession(timeout=ClientTimeout(total=None, sock_connect=10, sock_read=None),
                                 auto_decompress=False, trust_env=False)
         yield
+        await uploads.close()
         await session.close()
 
     async def handle(request):
@@ -149,6 +152,8 @@ document.getElementById('message').textContent='Ce lien ne fonctionne pas. Ouvre
         # Other customers' proxy.runpod.net hosts may be same-site, but are never same-origin.
         if request.path != '/' and request.headers.get('Sec-Fetch-Site') not in {None, 'same-origin', 'none'}:
             return web.json_response({'error': 'Cross-origin request refused'}, status=403, headers=secure_headers())
+        if request.path == PREFIX or request.path.startswith(PREFIX + '/'):
+            return await uploads.handle(request, session, upstream)
         if request.content_length is not None and request.content_length > limit:
             return web.json_response({'error': 'Upload too large'}, status=413, headers=secure_headers())
         if request.headers.get('Upgrade', '').lower() == 'websocket':
@@ -394,7 +399,7 @@ def main():
         '  ' + folder + ': ' + folder + '\n' for folder in ['diffusion_models', 'text_encoders', 'vae', 'loras',
         'checkpoints', 'clip_projections', 'controlnet', 'upscale_models', 'ultralytics', 'sams', 'insightface']))
     comfy = start('comfy', [PYTHON, '-u', COMFY / 'main.py', '--listen', '127.0.0.1', '--port', '8190',
-        '--max-upload-size', '512', '--extra-model-paths-config', config, '--input-directory', ROOT / 'input',
+        '--max-upload-size', '2048', '--extra-model-paths-config', config, '--input-directory', ROOT / 'input',
         '--output-directory', ROOT / 'output', '--temp-directory', ROOT / 'temp/comfy', '--user-directory', ROOT / 'user',
         '--reserve-vram', '3', '--fast', 'fp16_accumulation', '--disable-fast-disk', '--disable-dynamic-vram',
         '--disable-async-offload', '--disable-pinned-memory', '--use-pytorch-cross-attention', '--disable-auto-launch'], cwd=COMFY)
@@ -406,7 +411,7 @@ def main():
     if missing := required - set(nodes):
         raise RuntimeError('Required nodes failed to load: ' + ', '.join(sorted(missing)))
     proxy = start('proxy', [PROXY, '-m', 'comfy_api_proxy.cli', 'run', '--comfyui', 'http://127.0.0.1:8190',
-        '--host', '127.0.0.1', '--port', '8189', '--max-upload-mb', '500', '--state-dir', ROOT / 'proxy-state'], cwd=APP)
+        '--host', '127.0.0.1', '--port', '8189', '--max-upload-mb', '2048', '--state-dir', ROOT / 'proxy-state'], cwd=APP)
     wait_http('http://127.0.0.1:8189/api/v2/health', proxy, seconds=30)
     app = start('app', [NODE, APP / 'node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', '3000'], cwd=APP)
     wait_http('http://127.0.0.1:3000/api/models', app)

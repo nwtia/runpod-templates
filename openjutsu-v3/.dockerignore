@@ -1,0 +1,4 @@
+frontend-build/node_modules
+frontend-build/.git
+frontend-build/.next/cache
+frontend-build/.env*

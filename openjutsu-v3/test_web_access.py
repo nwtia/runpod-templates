@@ -17,6 +17,7 @@ from aiohttp import web, ClientSession
 from aiohttp.test_utils import TestServer
 
 SOURCE = Path(os.environ.get('NWTIA_BOOTSTRAP', str(Path(__file__).resolve().parents[1] / 'outputs/NWTIA-OpenJutsu-V3-RunPod/bootstrap.py')))
+sys.path.insert(0, str(SOURCE.parent))
 with patch.dict(sys.modules, {'fcntl': types.SimpleNamespace()}):
     spec = importlib.util.spec_from_file_location('browser_bootstrap', SOURCE)
     module = importlib.util.module_from_spec(spec)
