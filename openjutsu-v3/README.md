@@ -9,7 +9,7 @@
 Aucune cle SSH, aucune commande et aucun mot de passe a saisir. Le lien prive
 ouvre ta session dans le navigateur. Garde ce lien pour toi : il donne acces a
 ton OpenJutsu. Pendant le premier telechargement des modeles, la page attend
-et se met a jour automatiquement. Le port HTTP 8080 doit etre expose.
+et se met a jour automatiquement. Le port HTTP 8080 doit etre expose. Les videos et photos peuvent totaliser jusqu'a 2 GiB par envoi, sans recompression. Les gros envois affichent un pourcentage et passent par des blocs verifies pour traverser le proxy RunPod.
 
 ## Stockage et modeles
 Environ 41 Go de modeles publics sont telecharges et verifies au premier
@@ -34,3 +34,4 @@ contre les requetes d'autres sites, transferts et progression en continu.
 ComfyUI et le proxy restent locaux au pod. Seule l'entree web protegee est
 exposee en HTTPS par RunPod. SSH est facultatif. Aucune generation automatique.
 Aucun media personnel, historique, mot de passe ou cle privee dans l'image.
+
